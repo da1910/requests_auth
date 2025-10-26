@@ -16,6 +16,7 @@ from requests_auth._oauth2.authorization_code_pkce import (
     OAuth2AuthorizationCodePKCE,
     OktaAuthorizationCodePKCE,
 )
+from requests_auth._oauth2.device_code import OAuth2DeviceCode
 from requests_auth._oauth2.client_credentials import (
     OAuth2ClientCredentials,
     OktaClientCredentials,
@@ -52,6 +53,7 @@ __all__ = [
     "DisplaySettings",
     "OAuth2AuthorizationCodePKCE",
     "OktaAuthorizationCodePKCE",
+    "OAuth2DeviceCode",
     "OAuth2Implicit",
     "OktaImplicit",
     "OktaImplicitIdToken",
