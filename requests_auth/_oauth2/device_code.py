@@ -40,6 +40,10 @@ class OAuth2DeviceCode(requests.auth.AuthBase, SupportMultiAuth):
         Token will be sent as "Bearer {token}" by default.
         :param scope: Scope parameter sent to token URL as body. Can also be a list of scopes. Not sent by default.
         :param token_field_name: Field name containing the token. access_token by default.
+        :param authorization_pending_status_code: Status code returned if server is waiting for authorization. Default
+        value is 400 "Bad Request".
+        :param slow_down_status_code: Status code returned if the server requests the client wait longer between poll
+        requests. Default value is 400 "Bad Request".
         :param early_expiry: Number of seconds before actual token expiry where token will be considered as expired.
         Default to 30 seconds to ensure token will not expire between the time of retrieval and the time the request
         reaches the actual server. Set it to 0 to deactivate this feature and use the same token until actual expiry.
@@ -63,6 +67,10 @@ class OAuth2DeviceCode(requests.auth.AuthBase, SupportMultiAuth):
             raise Exception("header_value parameter must contains {token}.")
 
         self.token_field_name = kwargs.pop("token_field_name", None) or "access_token"
+        self.authorization_pending_status_code = kwargs.pop(
+            "authorization_pending_status_code", 400
+        )
+        self.slow_down_status_code = kwargs.pop("slow_down_status_code", 400)
         self.early_expiry = float(kwargs.pop("early_expiry", None) or 30.0)
         self.prefer_complete_verification_url = kwargs.pop(
             "prefer_complete_verification_url", False
@@ -81,7 +89,7 @@ class OAuth2DeviceCode(requests.auth.AuthBase, SupportMultiAuth):
             self.authorization_data["scope"] = (
                 " ".join(scope) if isinstance(scope, list) else scope
             )
-        self.data = kwargs
+        self.authorization_data.update(kwargs)
         self.state = sha512(
             (self.authorization_url + self.token_url + self.client_id).encode(
                 "unicode_escape"
@@ -91,6 +99,8 @@ class OAuth2DeviceCode(requests.auth.AuthBase, SupportMultiAuth):
         # As described in https://tools.ietf.org/html/rfc6749#section-6
         self.refresh_data = {"grant_type": "refresh_token"}
         self.refresh_data.update(kwargs)
+
+        self.additional_data = kwargs
 
     def __call__(self, r: requests.Request) -> requests.Request:
         token = OAuth2.token_cache.get_token(
@@ -139,6 +149,7 @@ class OAuth2DeviceCode(requests.auth.AuthBase, SupportMultiAuth):
             "device_code": device_code,
             "client_id": self.client_id,
         }
+        token_request_data.update(self.additional_data)
         while time.time() - start_time < request_expires_in:
             token_response = self.session.post(
                 self.token_url,
@@ -163,14 +174,15 @@ class OAuth2DeviceCode(requests.auth.AuthBase, SupportMultiAuth):
                     if token_expires_in is not None
                     else (self.state, cast(str, content.get("access_token")))
                 )
-            if token_response.status_code == 400:
-                # User has not authenticated, or something has gone wrong. There are two expected errors we could
-                # receive here which are normal.
+            if token_response.status_code == self.authorization_pending_status_code:
                 error_content = _content_from_response(token_response)
                 error_type = error_content.get("error", None)
                 if error_type == "authorization_pending":
                     time.sleep(interval)
                     continue
+            if token_response.status_code == self.slow_down_status_code:
+                error_content = _content_from_response(token_response)
+                error_type = error_content.get("error", None)
                 if error_type == "slow_down":
                     interval += 5
                     time.sleep(interval)
@@ -189,3 +201,37 @@ class OAuth2DeviceCode(requests.auth.AuthBase, SupportMultiAuth):
             self.session,
         )
         return self.state, token, expires_in, refresh_token
+
+
+class Auth0DeviceCode(OAuth2DeviceCode):
+    """
+    Describes an Auth0 (OAuth 2) Device code flow authentication request.
+    """
+
+    def __init__(self, domain: str, client_id: str, audience: str, **kwargs) -> None:
+        """
+        :param domain: Auth0 domain, (like "https://org.eu.auth0.com")
+        :param client_id: Client ID
+        :param audience: API Audience, (like https://org-api-audience")
+        :param scope: Scope parameter sent in query. Can also be a list of scopes. Request 'openid' by default.
+        :param timeout: Maximum amount of seconds to wait for a token to be received once requested.
+        Wait for 1 minute by default.
+        :param prefer_complete_verification_url: If supported, return the complete verification URL to avoid the need
+        to enter the code. If false or not supported, the device code will be returned.
+        :param early_expiry: Number of seconds before actual token expiry where token will be considered as expired.
+        Default to 30 seconds to ensure token will not expire between the time of retrieval and the time the request
+        reaches the actual server. Set it to 0 to deactivate this feature and use the same token until actual expiry.
+        :param session: requests.Session instance that will be used to request the token.
+        Use it to provide a custom proxying rule for instance.
+        :param kwargs: all additional authorization parameters that should be put as query parameter in the token URL.
+        """
+        stripped_domain = domain.rstrip("/")
+        super().__init__(
+            authorization_url=f"{stripped_domain}/oauth/device/code",
+            token_url=f"{stripped_domain}/oauth/token",
+            client_id=client_id,
+            audience=audience,
+            authorization_pending_status_code=403,
+            slow_down_status_code=403,
+            **kwargs,
+        )

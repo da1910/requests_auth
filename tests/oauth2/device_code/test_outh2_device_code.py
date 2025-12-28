@@ -10,7 +10,7 @@ import requests
 
 import requests_auth
 from requests_auth import OAuth2DeviceCode, TimeoutOccurred
-from requests_auth.testing import BrowserMock, browser_mock, token_cache  # noqa: F401
+from requests_auth.testing import token_cache  # noqa: F401
 
 DEVICE_CODE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
 
@@ -73,47 +73,7 @@ def test_oauth2_device_code_flow_uses_provided_session(
     requests.get("http://authorized_only", auth=auth)
 
 
-def test_oauth2_authorization_code_flow_get_code_is_sent_in_authorization_header_by_default(
-    token_cache, responses: RequestsMock, browser_mock: BrowserMock
-):
-    auth = requests_auth.OAuth2AuthorizationCode(
-        "http://provide_code", "http://provide_access_token"
-    )
-    tab = browser_mock.add_response(
-        opened_url="http://provide_code?response_type=code&state=163f0455b3e9cad3ca04254e5a0169553100d3aa0756c7964d897da316a695ffed5b4f46ef305094fd0a88cfe4b55ff257652015e4aa8f87b97513dba440f8de&redirect_uri=http%3A%2F%2Flocalhost%3A5000%2F",
-        reply_url="http://localhost:5000#code=SplxlOBeZQQYbYS6WxSbIA&state=163f0455b3e9cad3ca04254e5a0169553100d3aa0756c7964d897da316a695ffed5b4f46ef305094fd0a88cfe4b55ff257652015e4aa8f87b97513dba440f8de",
-    )
-    responses.post(
-        "http://provide_access_token",
-        json={
-            "access_token": "2YotnFZFEjr1zCsicMWpAA",
-            "token_type": "example",
-            "expires_in": 3600,
-            "refresh_token": "tGzv3JOkF0XG5Qx2TlKWIA",
-            "example_parameter": "example_value",
-        },
-        match=[
-            urlencoded_params_matcher(
-                {
-                    "grant_type": "authorization_code",
-                    "redirect_uri": "http://localhost:5000/",
-                    "response_type": "code",
-                    "code": "SplxlOBeZQQYbYS6WxSbIA",
-                }
-            ),
-        ],
-    )
-    responses.get(
-        "http://authorized_only",
-        match=[header_matcher({"Authorization": "Bearer 2YotnFZFEjr1zCsicMWpAA"})],
-    )
-
-    requests.get("http://authorized_only", auth=auth)
-
-    tab.assert_success()
-
-
-def test_oauth2_authorization_code_flow_token_is_expired_after_30_seconds_by_default(
+def test_oauth2_device_code_flow_token_is_expired_after_30_seconds_by_default(
     token_cache, responses: RequestsMock
 ):
     auth = requests_auth.OAuth2DeviceCode(
@@ -174,7 +134,7 @@ def test_oauth2_authorization_code_flow_token_is_expired_after_30_seconds_by_def
 
 
 def test_oauth2_device_code_flow_token_custom_expiry(
-    token_cache, responses: RequestsMock, browser_mock: BrowserMock
+    token_cache, responses: RequestsMock
 ):
     auth = requests_auth.OAuth2DeviceCode(
         "http://provide_code",
@@ -196,7 +156,7 @@ def test_oauth2_device_code_flow_token_custom_expiry(
     requests.get("http://authorized_only", auth=auth)
 
 
-def test_refresh_token(token_cache, responses: RequestsMock, browser_mock: BrowserMock):
+def test_refresh_token(token_cache, responses: RequestsMock):
     auth = requests_auth.OAuth2DeviceCode(
         "http://provide_code",
         "http://provide_device_code",
@@ -456,7 +416,10 @@ def test_empty_token_is_invalid(token_cache, responses: RequestsMock):
 
 
 class TokenResponder:
-    def __init__(self, response_mock: RequestsMock, token_url: str):
+    def __init__(
+        self, response_mock: RequestsMock, token_url: str, status_code: int = 400
+    ):
+        self._status_code = status_code
         self._mock = response_mock
         self._responses = []
         self._token_url = token_url
@@ -488,10 +451,12 @@ class TokenResponder:
         for response_type in response_types:
             if response_type == "authorization_pending":
                 self._responses.append(
-                    {"status": 400, "error": "authorization_pending"}
+                    {"status": self._status_code, "error": "authorization_pending"}
                 )
             elif response_type == "slow_down":
-                self._responses.append({"status": 400, "error": "slow_down"})
+                self._responses.append(
+                    {"status": self._status_code, "error": "slow_down"}
+                )
             elif response_type == "ok":
                 self._responses.append(
                     {
