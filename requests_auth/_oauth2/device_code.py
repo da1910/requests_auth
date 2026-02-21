@@ -246,3 +246,35 @@ class Auth0DeviceCode(OAuth2DeviceCode):
             slow_down_status_code=403,
             **kwargs,
         )
+
+class EntraIDDeviceCode(OAuth2DeviceCode):
+    """
+    Describes an Entra ID (OAuth 2) Device code flow authentication request.
+    """
+
+    def __init__(self, tenant_id: str, client_id: str, **kwargs) -> None:
+        """
+        :param tenant_id: Entra ID tenant ID, (like "00000000-0000-0000-0000-000000000000")
+        :param client_id: Client ID
+        :param scope: Scope parameter sent in query. Can also be a list of scopes. Request 'openid' by default.
+        :param timeout: Maximum amount of seconds to wait for a token to be received once requested.
+        Wait for 3 minutes by default.
+        :param early_expiry: Number of seconds before actual token expiry where token will be considered as expired.
+        Default to 30 seconds to ensure token will not expire between the time of retrieval and the time the request
+        reaches the actual server. Set it to 0 to deactivate this feature and use the same token until actual expiry.
+        :param session: requests.Session instance that will be used to request the token.
+        Use it to provide a custom proxying rule for instance.
+        :param kwargs: all additional authorization parameters that should be put as query parameter in the token URL.
+        """
+        if "prefer_complete_verification_url" in kwargs:
+            warnings.warn("prefer_complete_verification_url parameter is not supported by Microsoft Entra ID and will be ignored.")
+        scopes = kwargs.pop("scope", "openid")
+        kwargs["scope"] = " ".join(scopes) if isinstance(scopes, list) else scopes
+        super().__init__(
+            authorization_url=f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/devicecode",
+            token_url=f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token",
+            client_id=client_id,
+            authorization_pending_status_code=400,
+            slow_down_status_code=400,
+            **kwargs,
+        )
