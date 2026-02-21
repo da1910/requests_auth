@@ -159,6 +159,7 @@ class OAuth2DeviceCode(requests.auth.AuthBase, SupportMultiAuth):
             "client_id": self.client_id,
         }
         token_request_data.update(self.additional_data)
+        time.sleep(interval)
         while time.time() - start_time < request_expires_in:
             token_response = self.session.post(
                 self.token_url,
