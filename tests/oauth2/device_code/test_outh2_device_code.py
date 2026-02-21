@@ -14,6 +14,53 @@ from requests_auth.testing import token_cache  # noqa: F401
 
 DEVICE_CODE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
 
+# Common test constants
+CLIENT_ID = "0d15afb1-2e83-487f-9d5a-fdd241d03db2"
+DEVICE_CODE = "GmRhmhcxhwAzkoEqiMEg_DnyEysNkuNhszIySk9eS"
+USER_CODE = "WDJB-MJHT"
+VERIFICATION_URI = "https://example.com/device"
+VERIFICATION_URI_COMPLETE = f"{VERIFICATION_URI}?user_code={USER_CODE}"
+ACCESS_TOKEN = "2YotnFZFEjr1zCsicMWpAA"
+REFRESH_TOKEN = "tGzv3JOkF0XG5Qx2TlKWIA"
+TOKEN_TYPE = "example"
+SCOPE = "read_data"
+AUTHORIZATION_URL = "http://provide_code"
+TOKEN_URL = "http://provide_device_code"
+
+
+def make_authorization_response(
+    device_code=DEVICE_CODE,
+    user_code=USER_CODE,
+    verification_uri=VERIFICATION_URI,
+    verification_uri_complete=VERIFICATION_URI_COMPLETE,
+    expires_in=1800,
+    interval=5,
+):
+    return {
+        "device_code": device_code,
+        "user_code": user_code,
+        "verification_uri": verification_uri,
+        "verification_uri_complete": verification_uri_complete,
+        "expires_in": expires_in,
+        "interval": interval,
+    }
+
+
+def make_token_response(
+    access_token=ACCESS_TOKEN,
+    token_type=TOKEN_TYPE,
+    expires_in=3600,
+    refresh_token=REFRESH_TOKEN,
+    scope=SCOPE,
+):
+    return {
+        "access_token": access_token,
+        "token_type": token_type,
+        "expires_in": expires_in,
+        "refresh_token": refresh_token,
+        "scope": scope,
+    }
+
 
 def test_oauth2_device_code_flow_uses_provided_session(
     token_cache, responses: RequestsMock
@@ -21,113 +68,68 @@ def test_oauth2_device_code_flow_uses_provided_session(
     session = requests.Session()
     session.headers.update({"x-test": "Test value"})
     auth = requests_auth.OAuth2DeviceCode(
-        "http://provide_code",
-        "http://provide_device_code",
-        client_id="0d15afb1-2e83-487f-9d5a-fdd241d03db2",
+        AUTHORIZATION_URL,
+        TOKEN_URL,
+        client_id=CLIENT_ID,
         session=session,
     )
     responses.post(
-        "http://provide_code",
-        json={
-            "device_code": "GmRhmhcxhwAzkoEqiMEg_DnyEysNkuNhszIySk9eS",
-            "user_code": "WDJB-MJHT",
-            "verification_uri": "https://example.com/device",
-            "verification_uri_complete": "https://example.com/device?user_code=WDJB-MJHT",
-            "expires_in": 1800,
-            "interval": 5,
-        },
+        AUTHORIZATION_URL,
+        json=make_authorization_response(),
         match=[
-            urlencoded_params_matcher(
-                {
-                    "client_id": "0d15afb1-2e83-487f-9d5a-fdd241d03db2",
-                }
-            ),
+            urlencoded_params_matcher({"client_id": CLIENT_ID}),
             header_matcher({"x-test": "Test value"}),
         ],
     )
     responses.post(
-        "http://provide_device_code",
-        json={
-            "access_token": "2YotnFZFEjr1zCsicMWpAA",
-            "token_type": "example",
-            "expires_in": 3600,
-            "refresh_token": "tGzv3JOkF0XG5Qx2TlKWIA",
-            "scope": "read_data",
-        },
+        TOKEN_URL,
+        json=make_token_response(),
         match=[
-            urlencoded_params_matcher(
-                {
-                    "grant_type": DEVICE_CODE_GRANT,
-                    "device_code": "GmRhmhcxhwAzkoEqiMEg_DnyEysNkuNhszIySk9eS",
-                    "client_id": "0d15afb1-2e83-487f-9d5a-fdd241d03db2",
-                }
-            ),
+            urlencoded_params_matcher({
+                "grant_type": DEVICE_CODE_GRANT,
+                "device_code": DEVICE_CODE,
+                "client_id": CLIENT_ID,
+            }),
             header_matcher({"x-test": "Test value"}),
         ],
     )
     responses.get(
         "http://authorized_only",
-        match=[header_matcher({"Authorization": "Bearer 2YotnFZFEjr1zCsicMWpAA"})],
+        match=[header_matcher({"Authorization": f"Bearer {ACCESS_TOKEN}"})],
     )
-
     requests.get("http://authorized_only", auth=auth)
 
 
-def test_oauth2_device_code_flow_token_is_expired_after_30_seconds_by_default(
-    token_cache, responses: RequestsMock
-):
+
+
+def test_oauth2_device_code_flow_token_is_expired_after_30_seconds_by_default(token_cache, responses: RequestsMock):
     auth = requests_auth.OAuth2DeviceCode(
-        "http://provide_code",
-        "http://provide_device_code",
-        client_id="0d15afb1-2e83-487f-9d5a-fdd241d03db2",
+        AUTHORIZATION_URL,
+        TOKEN_URL,
+        client_id=CLIENT_ID,
     )
-    # Add a token that expires in 29 seconds, so should be considered as expired when issuing the request
     token_cache._add_token(
         key="5e668eeebaca3355b71f27143ebb2972f9bb6839844dc4ae0c519a1ac4e8fdb132c6ad864169e2b6e2aee9f317661fc5f3e7a2ee066284d468fb54c44bf29682",
-        token="2YotnFZFEjr1zCsicMWpAA",
+        token=ACCESS_TOKEN,
         expiry=requests_auth._oauth2.tokens._to_expiry(expires_in=29),
     )
-    # Meaning a new one will be requested
     responses.post(
-        "http://provide_code",
-        json={
-            "device_code": "GmRhmhcxhwAzkoEqiMEg_DnyEysNkuNhszIySk9eS",
-            "user_code": "WDJB-MJHT",
-            "verification_uri": "https://example.com/device",
-            "verification_uri_complete": "https://example.com/device?user_code=WDJB-MJHT",
-            "expires_in": 1800,
-            "interval": 5,
-        },
-        match=[
-            urlencoded_params_matcher(
-                {
-                    "client_id": "0d15afb1-2e83-487f-9d5a-fdd241d03db2",
-                }
-            ),
-        ],
+        AUTHORIZATION_URL,
+        json=make_authorization_response(),
+        match=[urlencoded_params_matcher({"client_id": CLIENT_ID})],
     )
     responses.post(
-        "http://provide_device_code",
-        json={
-            "access_token": "2YotnFZFEjr1zCsicMWpAA",
-            "token_type": "example",
-            "expires_in": 3600,
-            "refresh_token": "tGzv3JOkF0XG5Qx2TlKWIA",
-            "scope": "read_data",
-        },
-        match=[
-            urlencoded_params_matcher(
-                {
-                    "grant_type": DEVICE_CODE_GRANT,
-                    "device_code": "GmRhmhcxhwAzkoEqiMEg_DnyEysNkuNhszIySk9eS",
-                    "client_id": "0d15afb1-2e83-487f-9d5a-fdd241d03db2",
-                }
-            ),
-        ],
+        TOKEN_URL,
+        json=make_token_response(),
+        match=[urlencoded_params_matcher({
+            "grant_type": DEVICE_CODE_GRANT,
+            "device_code": DEVICE_CODE,
+            "client_id": CLIENT_ID,
+        })],
     )
     responses.get(
         "http://authorized_only",
-        match=[header_matcher({"Authorization": "Bearer 2YotnFZFEjr1zCsicMWpAA"})],
+        match=[header_matcher({"Authorization": f"Bearer {ACCESS_TOKEN}"})],
     )
 
     requests.get("http://authorized_only", auth=auth)
@@ -137,20 +139,19 @@ def test_oauth2_device_code_flow_token_custom_expiry(
     token_cache, responses: RequestsMock
 ):
     auth = requests_auth.OAuth2DeviceCode(
-        "http://provide_code",
+        AUTHORIZATION_URL,
         "http://provide_access_token",
-        client_id="0d15afb1-2e83-487f-9d5a-fdd241d03db2",
+        client_id=CLIENT_ID,
         early_expiry=28,
     )
-    # Add a token that expires in 29 seconds, so should be considered as not expired when issuing the request
     token_cache._add_token(
         key="5e668eeebaca3355b71f27143ebb2972f9bb6839844dc4ae0c519a1ac4e8fdb132c6ad864169e2b6e2aee9f317661fc5f3e7a2ee066284d468fb54c44bf29682",
-        token="2YotnFZFEjr1zCsicMWpAA",
+        token=ACCESS_TOKEN,
         expiry=requests_auth._oauth2.tokens._to_expiry(expires_in=29),
     )
     responses.get(
         "http://authorized_only",
-        match=[header_matcher({"Authorization": "Bearer 2YotnFZFEjr1zCsicMWpAA"})],
+        match=[header_matcher({"Authorization": f"Bearer {ACCESS_TOKEN}"})],
     )
 
     requests.get("http://authorized_only", auth=auth)
@@ -158,74 +159,36 @@ def test_oauth2_device_code_flow_token_custom_expiry(
 
 def test_refresh_token(token_cache, responses: RequestsMock):
     auth = requests_auth.OAuth2DeviceCode(
-        "http://provide_code",
-        "http://provide_device_code",
-        client_id="0d15afb1-2e83-487f-9d5a-fdd241d03db2",
-    )
-    # Setup initial authentication responses
-    responses.post(
-        "http://provide_code",
-        json={
-            "device_code": "GmRhmhcxhwAzkoEqiMEg_DnyEysNkuNhszIySk9eS",
-            "user_code": "WDJB-MJHT",
-            "verification_uri": "https://example.com/device",
-            "verification_uri_complete": "https://example.com/device?user_code=WDJB-MJHT",
-            "expires_in": 1800,
-            "interval": 5,
-        },
-        match=[
-            urlencoded_params_matcher(
-                {
-                    "client_id": "0d15afb1-2e83-487f-9d5a-fdd241d03db2",
-                }
-            ),
-        ],
+        AUTHORIZATION_URL,
+        TOKEN_URL,
+        client_id=CLIENT_ID,
     )
     responses.post(
-        "http://provide_device_code",
-        json={
-            "access_token": "2YotnFZFEjr1zCsicMWpAA",
-            "token_type": "example",
-            "expires_in": 0,
-            "refresh_token": "tGzv3JOkF0XG5Qx2TlKWIA",
-            "scope": "read_data",
-        },
-        match=[
-            urlencoded_params_matcher(
-                {
-                    "grant_type": DEVICE_CODE_GRANT,
-                    "device_code": "GmRhmhcxhwAzkoEqiMEg_DnyEysNkuNhszIySk9eS",
-                    "client_id": "0d15afb1-2e83-487f-9d5a-fdd241d03db2",
-                }
-            ),
-        ],
+        AUTHORIZATION_URL,
+        json=make_authorization_response(),
+        match=[urlencoded_params_matcher({"client_id": CLIENT_ID})],
+    )
+    responses.post(
+        TOKEN_URL,
+        json=make_token_response(expires_in=0),
+        match=[urlencoded_params_matcher({
+            "grant_type": DEVICE_CODE_GRANT,
+            "device_code": DEVICE_CODE,
+            "client_id": CLIENT_ID,
+        })],
     )
     responses.get(
         "http://authorized_only",
-        match=[header_matcher({"Authorization": "Bearer 2YotnFZFEjr1zCsicMWpAA"})],
+        match=[header_matcher({"Authorization": f"Bearer {ACCESS_TOKEN}"})],
     )
-
-    # Setup auth handler
     requests.get("http://authorized_only", auth=auth)
-
-    # Response for refresh token grant
     responses.post(
-        "http://provide_device_code",
-        json={
-            "access_token": "rVR7Syg5bjZtZYjbZIW",
-            "token_type": "example",
-            "expires_in": 3600,
-            "refresh_token": "tGzv3JOkF0XG5Qx2TlKWIA",
-            "scope": "read_data",
-        },
-        match=[
-            urlencoded_params_matcher(
-                {
-                    "grant_type": "refresh_token",
-                    "refresh_token": "tGzv3JOkF0XG5Qx2TlKWIA",
-                }
-            )
-        ],
+        TOKEN_URL,
+        json=make_token_response(access_token="rVR7Syg5bjZtZYjbZIW"),
+        match=[urlencoded_params_matcher({
+            "grant_type": "refresh_token",
+            "refresh_token": REFRESH_TOKEN,
+        })],
     )
     responses.get(
         "http://authorized_only",
@@ -989,3 +952,68 @@ def test_header_value_must_contains_token():
             header_value="Bearer token",
         )
     assert str(exception_info.value) == "header_value parameter must contains {token}."
+
+
+def test_oauth2_device_code_flow_prints_verification_url_and_user_code_to_stdout(token_cache, responses: RequestsMock, capsys):
+    auth = requests_auth.OAuth2DeviceCode(
+        AUTHORIZATION_URL,
+        TOKEN_URL,
+        client_id=CLIENT_ID,
+    )
+    responses.post(
+        AUTHORIZATION_URL,
+        json=make_authorization_response(),
+        match=[urlencoded_params_matcher({"client_id": CLIENT_ID})],
+    )
+    responses.post(
+        TOKEN_URL,
+        json=make_token_response(),
+        match=[urlencoded_params_matcher({
+            "grant_type": DEVICE_CODE_GRANT,
+            "device_code": DEVICE_CODE,
+            "client_id": CLIENT_ID,
+        })],
+    )
+    responses.get(
+        "http://authorized_only",
+        match=[header_matcher({"Authorization": f"Bearer {ACCESS_TOKEN}"})],
+    )
+    requests.get("http://authorized_only", auth=auth)
+    captured = capsys.readouterr()
+    assert VERIFICATION_URI in captured.out
+    assert USER_CODE in captured.out
+
+def test_oauth2_device_code_flow_respects_prompt_callback(token_cache, responses: RequestsMock, capsys):
+    called = {}
+    def custom_prompt_callback(verification_uri, user_code):
+        called['uri'] = verification_uri
+        called['code'] = user_code
+    auth = requests_auth.OAuth2DeviceCode(
+        AUTHORIZATION_URL,
+        TOKEN_URL,
+        client_id=CLIENT_ID,
+        prompt_callback=custom_prompt_callback,
+    )
+    responses.post(
+        AUTHORIZATION_URL,
+        json=make_authorization_response(),
+        match=[urlencoded_params_matcher({"client_id": CLIENT_ID})],
+    )
+    responses.post(
+        TOKEN_URL,
+        json=make_token_response(),
+        match=[urlencoded_params_matcher({
+            "grant_type": DEVICE_CODE_GRANT,
+            "device_code": DEVICE_CODE,
+            "client_id": CLIENT_ID,
+        })],
+    )
+    responses.get(
+        "http://authorized_only",
+        match=[header_matcher({"Authorization": f"Bearer {ACCESS_TOKEN}"})],
+    )
+    requests.get("http://authorized_only", auth=auth)
+    captured = capsys.readouterr()
+    assert called['uri'] == VERIFICATION_URI
+    assert called['code'] == USER_CODE
+    assert captured.out == ""
