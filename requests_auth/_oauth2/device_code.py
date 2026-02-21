@@ -1,4 +1,5 @@
 import time
+import warnings
 
 from hashlib import sha512
 from typing import cast
@@ -13,6 +14,11 @@ from requests_auth._oauth2.common import (
     _content_from_response,
 )
 
+def prompt_user_to_authenticate(verification_uri: str, user_code: str) -> None:
+    print("Device Code login request:")
+    print(
+        f"Navigate to {verification_uri} on any device and enter the device code: {user_code}"
+    )
 
 class OAuth2DeviceCode(requests.auth.AuthBase, SupportMultiAuth):
     """
@@ -30,7 +36,7 @@ class OAuth2DeviceCode(requests.auth.AuthBase, SupportMultiAuth):
         :param token_url: OAuth 2 token URL.
         :param client_id: Resource owner username.
         :param timeout: Maximum amount of seconds to wait for a token to be received once requested.
-        Wait for 1 minute by default.
+        Wait for 3 minutes by default.
         :param prefer_complete_verification_url: If supported, return the complete verification URL to avoid the need
         to enter the code. If false or not supported, the device code will be returned.
         :param header_name: Name of the header field used to send token.
@@ -49,6 +55,9 @@ class OAuth2DeviceCode(requests.auth.AuthBase, SupportMultiAuth):
         reaches the actual server. Set it to 0 to deactivate this feature and use the same token until actual expiry.
         :param session: requests.Session instance that will be used to request the token.
         Use it to provide a custom proxying rule for instance.
+        :param prompt_callback: A function that will be called with the verification_uri and user_code as parameters
+        once the authorization request has been made. By default, a print statement will be used to prompt the
+        user to authenticate with their browser.
         :param kwargs: all additional authorization parameters that should be put as query parameter in the token URL.
         """
         self.authorization_url = authorization_url
@@ -76,8 +85,10 @@ class OAuth2DeviceCode(requests.auth.AuthBase, SupportMultiAuth):
             "prefer_complete_verification_url", False
         )
 
+        self.prompt_callback = kwargs.pop("prompt_callback", None) or prompt_user_to_authenticate
+
         # Time is expressed in seconds
-        self.timeout = int(kwargs.pop("timeout", None) or 60)
+        self.timeout = int(kwargs.pop("timeout", None) or 180)
 
         self.session = kwargs.pop("session", None) or requests.Session()
         self.session.timeout = self.timeout
@@ -139,10 +150,8 @@ class OAuth2DeviceCode(requests.auth.AuthBase, SupportMultiAuth):
 
         interval = response_data.get("interval", 5)
         start_time = time.time()
-        print("Device Code login request:")
-        print(
-            f"Navigate to {verification_uri} on any device and enter the device code: {user_code}"
-        )
+
+        self.prompt_callback(verification_uri, user_code)
 
         token_request_data = {
             "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
@@ -215,7 +224,7 @@ class Auth0DeviceCode(OAuth2DeviceCode):
         :param audience: API Audience, (like https://org-api-audience")
         :param scope: Scope parameter sent in query. Can also be a list of scopes. Request 'openid' by default.
         :param timeout: Maximum amount of seconds to wait for a token to be received once requested.
-        Wait for 1 minute by default.
+        Wait for 3 minutes by default.
         :param prefer_complete_verification_url: If supported, return the complete verification URL to avoid the need
         to enter the code. If false or not supported, the device code will be returned.
         :param early_expiry: Number of seconds before actual token expiry where token will be considered as expired.
@@ -226,6 +235,8 @@ class Auth0DeviceCode(OAuth2DeviceCode):
         :param kwargs: all additional authorization parameters that should be put as query parameter in the token URL.
         """
         stripped_domain = domain.rstrip("/")
+        scopes = kwargs.pop("scope", "openid")
+        kwargs["scope"] = " ".join(scopes) if isinstance(scopes, list) else scopes
         super().__init__(
             authorization_url=f"{stripped_domain}/oauth/device/code",
             token_url=f"{stripped_domain}/oauth/token",
