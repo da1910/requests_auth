@@ -40,6 +40,7 @@ def test_oauth2_device_code_flow_uses_provided_session(
                 {
                     "client_id": "0d15afb1-2e83-487f-9d5a-fdd241d03db2",
                     "audience": "api-audience",
+                    "scope": "openid",
                 }
             ),
             header_matcher({"x-test": "Test value"}),
@@ -104,6 +105,7 @@ def test_oauth2_device_code_flow_token_is_expired_after_30_seconds_by_default(
                 {
                     "client_id": "0d15afb1-2e83-487f-9d5a-fdd241d03db2",
                     "audience": "api-audience",
+                    "scope": "openid",
                 }
             ),
         ],
@@ -181,6 +183,7 @@ def test_refresh_token(token_cache, responses: RequestsMock):
                 {
                     "client_id": "0d15afb1-2e83-487f-9d5a-fdd241d03db2",
                     "audience": "api-audience",
+                    "scope": "openid",
                 }
             ),
         ],
@@ -192,7 +195,7 @@ def test_refresh_token(token_cache, responses: RequestsMock):
             "token_type": "example",
             "expires_in": 0,
             "refresh_token": "tGzv3JOkF0XG5Qx2TlKWIA",
-            "scope": "read_data",
+            "scope": "openid",
         },
         match=[
             urlencoded_params_matcher(
@@ -221,7 +224,7 @@ def test_refresh_token(token_cache, responses: RequestsMock):
             "token_type": "example",
             "expires_in": 3600,
             "refresh_token": "tGzv3JOkF0XG5Qx2TlKWIA",
-            "scope": "read_data",
+            "scope": "openid",
         },
         match=[
             urlencoded_params_matcher(
@@ -263,6 +266,7 @@ def test_refresh_token_invalid(token_cache, responses: RequestsMock):
                 {
                     "client_id": "0d15afb1-2e83-487f-9d5a-fdd241d03db2",
                     "audience": "api-audience",
+                    "scope": "openid",
                 }
             ),
         ],
@@ -274,7 +278,7 @@ def test_refresh_token_invalid(token_cache, responses: RequestsMock):
             "token_type": "example",
             "expires_in": 0,
             "refresh_token": "tGzv3JOkF0XG5Qx2TlKWIA",
-            "scope": "read_data",
+            "scope": "openid",
         },
         match=[
             urlencoded_params_matcher(
@@ -341,6 +345,7 @@ def test_refresh_token_access_token_not_expired(token_cache, responses: Requests
                 {
                     "client_id": "0d15afb1-2e83-487f-9d5a-fdd241d03db2",
                     "audience": "api-audience",
+                    "scope": "openid",
                 }
             ),
         ],
@@ -352,7 +357,7 @@ def test_refresh_token_access_token_not_expired(token_cache, responses: Requests
             "token_type": "example",
             "expires_in": 3600,
             "refresh_token": "tGzv3JOkF0XG5Qx2TlKWIA",
-            "scope": "read_data",
+            "scope": "openid",
         },
         match=[
             urlencoded_params_matcher(
@@ -403,6 +408,7 @@ def test_empty_token_is_invalid(token_cache, responses: RequestsMock):
                 {
                     "client_id": "0d15afb1-2e83-487f-9d5a-fdd241d03db2",
                     "audience": "api-audience",
+                    "scope": "openid",
                 }
             ),
         ],
@@ -414,14 +420,14 @@ def test_empty_token_is_invalid(token_cache, responses: RequestsMock):
             "token_type": "example",
             "expires_in": 3600,
             "refresh_token": "tGzv3JOkF0XG5Qx2TlKWIA",
-            "scope": "read_data",
+            "scope": "openid",
         },
     )
     with pytest.raises(requests_auth.GrantNotProvided) as exception_info:
         requests.get("http://authorized_only", auth=auth)
     assert (
         str(exception_info.value)
-        == "access_token not provided within {'access_token': '', 'token_type': 'example', 'expires_in': 3600, 'refresh_token': 'tGzv3JOkF0XG5Qx2TlKWIA', 'scope': 'read_data'}."
+        == "access_token not provided within {'access_token': '', 'token_type': 'example', 'expires_in': 3600, 'refresh_token': 'tGzv3JOkF0XG5Qx2TlKWIA', 'scope': 'openid'}."
     )
     assert isinstance(exception_info.value, requests_auth.RequestsAuthException)
     assert isinstance(exception_info.value, requests.RequestException)
@@ -468,6 +474,7 @@ class TestPollingBehaviour:
                     {
                         "client_id": client_id,
                         "audience": "api-audience",
+                        "scope": "openid",
                     }
                 ),
             ],
