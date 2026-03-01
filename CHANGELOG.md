@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `requests_auth.OAuth2DeviceCode` handling [OAuth 2.0 Device Authorization Grant](https://datatracker.ietf.org/doc/html/rfc8628) (device code flow).
+  The following parameters allow customisation of this flow:
+  - `prompt_callback`: A function called with `verification_uri` and `user_code` once the device authorization request has been made. By default a `print` statement prompts the user to navigate to the URI and enter the code.
+  - `prefer_complete_verification_url`: When `True` and the server provides a `verification_uri_complete`, that URL is used instead so the user does not need to enter the code separately.
+  - `authorization_pending_status_code` / `slow_down_status_code`: Status codes used to detect the `authorization_pending` and `slow_down` polling responses respectively.
+  - `timeout`: Maximum number of seconds to wait for the user to complete authentication. Defaults to 3 minutes.
+  - `early_expiry`: Number of seconds before actual token expiry where the token will be considered as expired. Defaults to 30 seconds.
+  - `scope`, `header_name`, `header_value`, `token_field_name` and `session` parameters are also available (consistent with other flows).
+- `requests_auth.Auth0DeviceCode` provides out-of-the-box support for the [Auth0](https://auth0.com) device code flow.
+- `requests_auth.EntraIDDeviceCode` provides out-of-the-box support for the [Microsoft Entra ID](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-device-code) device code flow.
+
 ## [8.0.0] - 2024-06-18
 ### Added
 - Adding explicit support for Python `3.12`.
