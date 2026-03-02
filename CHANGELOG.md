@@ -13,10 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `prefer_complete_verification_url`: When `True` and the server provides a `verification_uri_complete`, that URL is used instead so the user does not need to enter the code separately.
   - `authorization_pending_status_code` / `slow_down_status_code`: Status codes used to detect the `authorization_pending` and `slow_down` polling responses respectively.
   - `timeout`: Maximum number of seconds to wait for the user to complete authentication. Defaults to 3 minutes.
-  - `early_expiry`: Number of seconds before actual token expiry where the token will be considered as expired. Defaults to 30 seconds.
-  - `scope`, `header_name`, `header_value`, `token_field_name` and `session` parameters are also available (consistent with other flows).
-- `requests_auth.Auth0DeviceCode` provides out-of-the-box support for the [Auth0](https://auth0.com) device code flow.
-- `requests_auth.EntraIDDeviceCode` provides out-of-the-box support for the [Microsoft Entra ID](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-device-code) device code flow.
+- `requests_auth.Auth0DeviceCode` provides specific support for the [Auth0](https://auth0.com/docs/get-started/authentication-and-authorization-flow/device-authorization-flow/call-your-api-using-the-device-authorization-flow) device code flow.
+- `requests_auth.EntraIDDeviceCode` provides specific support for the [Microsoft Entra ID](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-device-code) device code flow.
 
 ## [8.0.0] - 2024-06-18
 ### Added
