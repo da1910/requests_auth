@@ -2,7 +2,7 @@ import time
 import warnings
 
 from hashlib import sha512
-from typing import cast
+from typing import cast, Tuple
 
 import requests
 
@@ -123,7 +123,7 @@ class OAuth2DeviceCode(requests.auth.AuthBase, SupportMultiAuth):
         r.headers[self.header_name] = self.header_value.format(token=token)
         return r
 
-    def request_new_token(self) -> tuple[str, str] | tuple[str, str, int, str]:
+    def request_new_token(self) -> Tuple[str, str] | Tuple[str, str, int, str]:
         # As described in https://datatracker.ietf.org/doc/html/rfc8628#section-3.1
 
         authorization_response: requests.Response = self.session.post(
@@ -200,7 +200,7 @@ class OAuth2DeviceCode(requests.auth.AuthBase, SupportMultiAuth):
             raise InvalidGrantRequest(token_response)
         raise TimeoutOccurred(request_expires_in)
 
-    def refresh_token(self, refresh_token: str) -> tuple[str, str, int, str]:
+    def refresh_token(self, refresh_token: str) -> Tuple[str, str, int, str]:
         # As described in https://tools.ietf.org/html/rfc6749#section-6
         self.refresh_data["refresh_token"] = refresh_token
         token, expires_in, refresh_token = request_new_grant_with_post(
